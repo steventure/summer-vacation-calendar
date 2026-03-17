@@ -216,15 +216,21 @@
 (function () {
   /* ── Event data ── */
   const EVENTS = [
-    { y:2026, m:7, d1:1,  d2:4,  zh:'正常週間訓練',   en:'Regular Weekly Training',   cls:'ev-regular' },
-    { y:2026, m:7, d1:6,  d2:9,  zh:'勝利船活動',     en:'Victory Ship Activity',      cls:'ev-activity' },
-    { y:2026, m:7, d1:13, d2:17, zh:'花蓮移地訓練',   en:'Hualien Away Training',      cls:'ev-dom-away' },
-    { y:2026, m:7, d1:20, d2:24, zh:'正常週間訓練',   en:'Regular Weekly Training',    cls:'ev-regular' },
-    { y:2026, m:7, d1:27, d2:31, zh:'正常週間訓練',   en:'Regular Weekly Training',    cls:'ev-regular' },
-    { y:2026, m:8, d1:1,  d2:4,  zh:'竹北移地集訓',   en:'Zhubei Away Camp',           cls:'ev-dom-away' },
-    { y:2026, m:8, d1:5,  d2:9,  zh:'高雄福爾摩沙盃', en:'Kaohsiung Formosa Cup',      cls:'ev-competition' },
-    { y:2026, m:8, d1:10, d2:15, zh:'日本福岡移地訓練', en:'Japan Fukuoka Away Training', cls:'ev-intl-away' },
-    { y:2026, m:8, d1:17, d2:22, zh:'正常週間訓練',   en:'Regular Weekly Training',    cls:'ev-regular' },
+    /* June (shown as prefix in July card) */
+    { y:2026, m:6, d1:29, d2:30, zh:'正常週間訓練',     en:'Regular Weekly Training',         cls:'ev-regular' },
+    /* July */
+    { y:2026, m:7, d1:1,  d2:3,  zh:'正常週間訓練',     en:'Regular Weekly Training',         cls:'ev-regular' },
+    { y:2026, m:7, d1:6,  d2:9,  zh:'勝利船訓練營',     en:'VISSEL HARIMA Training Camp',     cls:'ev-activity' },
+    { y:2026, m:7, d1:13, d2:17, zh:'移地訓練',         en:'Away Training (Hualien)',         cls:'ev-dom-away' },
+    { y:2026, m:7, d1:20, d2:24, zh:'正常週間訓練',     en:'Regular Weekly Training',         cls:'ev-regular' },
+    { y:2026, m:7, d1:27, d2:30, zh:'淡水盃集訓',       en:'Tamsui Cup Training Camp',        cls:'ev-dom-away' },
+    { y:2026, m:7, d1:31, d2:31, zh:'淡水盃比賽',       en:'Taiwan Tamsui Cup',               cls:'ev-competition' },
+    /* August */
+    { y:2026, m:8, d1:1,  d2:2,  zh:'淡水盃比賽',       en:'Taiwan Tamsui Cup',               cls:'ev-competition' },
+    { y:2026, m:8, d1:3,  d2:4,  zh:'福爾摩沙盃集訓',   en:'Formosa 7s Training Camp',        cls:'ev-dom-away' },
+    { y:2026, m:8, d1:5,  d2:9,  zh:'福爾摩沙盃比賽',   en:'Formosa 7s Competition',          cls:'ev-competition' },
+    { y:2026, m:8, d1:10, d2:15, zh:'移地訓練',         en:'Away Training (Fukuoka, Japan)',   cls:'ev-intl-away' },
+    { y:2026, m:8, d1:17, d2:22, zh:'正常週間訓練',     en:'Regular Weekly Training',         cls:'ev-regular' },
   ];
 
   const ZH_MONTHS = ['','一月','二月','三月','四月','五月','六月','七月','八月','九月','十月','十一月','十二月'];
@@ -252,7 +258,35 @@
     return null;
   }
 
-  function buildMonth(year, month) {
+  /* Build a single day cell. hostMonth = the month the card represents. */
+  function buildDayCell(year, month, day, dow, hostMonth) {
+    const isSat = dow === 5;
+    const isSun = dow === 6;
+    const evInfo = getEvent(year, month, day);
+
+    let cls = 'day';
+    if (isSun) cls += ' is-sun';
+    if (isSat) cls += ' is-sat';
+    if (isSun || isSat) cls += ' weekend';
+    if (evInfo) cls += ' ev ' + evInfo.ev.cls;
+
+    const isPrefix = hostMonth !== undefined && month !== hostMonth;
+    let h = `<div class="${cls}">`;
+    h += `<div class="day-num">${isPrefix ? '<span style="opacity:.45">' + ZH_MONTHS[month].replace('月','') + '/</span>' : ''}${day}</div>`;
+
+    const isMon = dow === 0;
+    const showLabel = evInfo && (evInfo.isFirst || (isMon && !evInfo.isLast));
+    if (showLabel) {
+      h += `<div class="ev-label">
+              <div class="zh">${evInfo.ev.zh}</div>
+              <div class="en">${evInfo.ev.en}</div>
+            </div>`;
+    }
+    h += `</div>`;
+    return h;
+  }
+
+  function buildMonth(year, month, prefixDays) {
     // Monday-first: Mon=0 … Sun=6
     const firstDow   = (new Date(year, month - 1, 1).getDay() + 6) % 7;
     const daysInMonth = new Date(year, month, 0).getDate();
@@ -273,37 +307,25 @@
     /* Day cells */
     h += `<div class="days-grid">`;
 
-    for (let i = 0; i < firstDow; i++) {
-      h += `<div class="day empty"></div>`;
+    /* Fill leading empty slots — or prefix days from previous month */
+    if (prefixDays && prefixDays.length) {
+      const emptyBefore = firstDow - prefixDays.length;
+      for (let i = 0; i < emptyBefore; i++) h += `<div class="day empty"></div>`;
+      const prevMonth = month === 1 ? 12 : month - 1;
+      const prevYear  = month === 1 ? year - 1 : year;
+      prefixDays.forEach((pd, idx) => {
+        const dow = emptyBefore + idx;
+        h += buildDayCell(prevYear, prevMonth, pd, dow, month);
+      });
+    } else {
+      for (let i = 0; i < firstDow; i++) {
+        h += `<div class="day empty"></div>`;
+      }
     }
 
     for (let day = 1; day <= daysInMonth; day++) {
-      const dow   = (firstDow + day - 1) % 7;
-      const isSat = dow === 5; // Mon-first: Sat=5
-      const isSun = dow === 6; // Mon-first: Sun=6
-      const evInfo = getEvent(year, month, day);
-
-      let cls = 'day';
-      if (isSun) cls += ' is-sun';
-      if (isSat) cls += ' is-sat';
-      if (isSun || isSat) cls += ' weekend';
-      if (evInfo) cls += ' ev ' + evInfo.ev.cls;
-
-      h += `<div class="${cls}">`;
-      h += `<div class="day-num">${day}</div>`;
-
-      /* Show label on first day of event, OR on Monday if the event
-         continues into this week row (and this isn't the last day). */
-      const isMon = dow === 0;
-      const showLabel = evInfo && (evInfo.isFirst || (isMon && !evInfo.isLast));
-      if (showLabel) {
-        h += `<div class="ev-label">
-                <div class="zh">${evInfo.ev.zh}</div>
-                <div class="en">${evInfo.ev.en}</div>
-              </div>`;
-      }
-
-      h += `</div>`;
+      const dow = (firstDow + day - 1) % 7;
+      h += buildDayCell(year, month, day, dow, month);
     }
 
     const total = firstDow + daysInMonth;
@@ -316,15 +338,15 @@
 
   /* ── Render ── */
   document.getElementById('months').innerHTML =
-    buildMonth(2026, 7) + buildMonth(2026, 8);
+    buildMonth(2026, 7, [29, 30]) + buildMonth(2026, 8);
 
   /* ── Legend ── */
   const LEGEND_ITEMS = [
     { color: '#43a047', zh: '正常週間訓練',       en: 'Regular Weekly Training' },
-    { color: '#00acc1', zh: '勝利船活動',         en: 'Special Activity' },
-    { color: '#fb8c00', zh: '移地集訓（國內）',    en: 'Domestic Away Training / Camp' },
-    { color: '#e53935', zh: '競賽（福爾摩沙盃）',  en: 'Competition (Formosa Cup)' },
-    { color: '#8e24aa', zh: '移地集訓（國際）',    en: 'International Away Training' },
+    { color: '#00acc1', zh: '勝利船訓練營',       en: 'VISSEL HARIMA Training Camp' },
+    { color: '#fb8c00', zh: '移地訓練 / 集訓（國內）', en: 'Domestic Away Training / Camp' },
+    { color: '#e53935', zh: '比賽',              en: 'Competition' },
+    { color: '#8e24aa', zh: '移地訓練（國際）',    en: 'International Away Training' },
   ];
 
   let leg = `<div class="legend-title">圖例 / Legend</div><div class="legend-list">`;
